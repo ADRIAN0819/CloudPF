@@ -1,13 +1,13 @@
 /**
- * Script para crear tablas DynamoDB en AWS Academy
- * Adaptado para usar LabRole y limitaciones de Academy
+ * Script para crear tablas DynamoDB
+ * Adaptado para usar LabRole
  */
 
 const AWS = require('aws-sdk');
 
 // Configurar AWS SDK
 AWS.config.update({
-    region: 'us-east-1' // AWS Academy solo permite us-east-1
+    region: 'us-east-1'
 });
 
 const dynamodb = new AWS.DynamoDB();
@@ -15,23 +15,23 @@ const dynamodb = new AWS.DynamoDB();
 // Configuraciones de tablas
 const tableConfigs = {
     products: {
-        TableName: 'CloudPF-Products-Academy',
+        TableName: 'CloudPF-Products',
         KeySchema: [
             { AttributeName: 'tenant_id', KeyType: 'HASH' },
-            { AttributeName: 'product_id', KeyType: 'RANGE' }
+            { AttributeName: 'codigo', KeyType: 'RANGE' }
         ],
         AttributeDefinitions: [
             { AttributeName: 'tenant_id', AttributeType: 'S' },
-            { AttributeName: 'product_id', AttributeType: 'S' },
-            { AttributeName: 'category', AttributeType: 'S' },
-            { AttributeName: 'status', AttributeType: 'S' }
+            { AttributeName: 'codigo', AttributeType: 'S' },
+            { AttributeName: 'categoria', AttributeType: 'S' },
+            { AttributeName: 'estado', AttributeType: 'S' }
         ],
         GlobalSecondaryIndexes: [
             {
-                IndexName: 'CategoryIndex',
+                IndexName: 'CategoriaIndex',
                 KeySchema: [
                     { AttributeName: 'tenant_id', KeyType: 'HASH' },
-                    { AttributeName: 'category', KeyType: 'RANGE' }
+                    { AttributeName: 'categoria', KeyType: 'RANGE' }
                 ],
                 Projection: { ProjectionType: 'ALL' },
                 ProvisionedThroughput: {
@@ -40,10 +40,10 @@ const tableConfigs = {
                 }
             },
             {
-                IndexName: 'StatusIndex',
+                IndexName: 'EstadoIndex',
                 KeySchema: [
                     { AttributeName: 'tenant_id', KeyType: 'HASH' },
-                    { AttributeName: 'status', KeyType: 'RANGE' }
+                    { AttributeName: 'estado', KeyType: 'RANGE' }
                 ],
                 Projection: { ProjectionType: 'ALL' },
                 ProvisionedThroughput: {
@@ -63,24 +63,24 @@ const tableConfigs = {
     },
     
     purchases: {
-        TableName: 'CloudPF-Purchases-Academy',
+        TableName: 'CloudPF-Purchases',
         KeySchema: [
             { AttributeName: 'tenant_id', KeyType: 'HASH' },
-            { AttributeName: 'purchase_id', KeyType: 'RANGE' }
+            { AttributeName: 'compra_id', KeyType: 'RANGE' }
         ],
         AttributeDefinitions: [
             { AttributeName: 'tenant_id', AttributeType: 'S' },
-            { AttributeName: 'purchase_id', AttributeType: 'S' },
-            { AttributeName: 'customer_email', AttributeType: 'S' },
-            { AttributeName: 'status', AttributeType: 'S' },
-            { AttributeName: 'created_at', AttributeType: 'S' }
+            { AttributeName: 'compra_id', AttributeType: 'S' },
+            { AttributeName: 'user_id', AttributeType: 'S' },
+            { AttributeName: 'estado', AttributeType: 'S' },
+            { AttributeName: 'fecha', AttributeType: 'S' }
         ],
         GlobalSecondaryIndexes: [
             {
-                IndexName: 'CustomerIndex',
+                IndexName: 'UserIndex',
                 KeySchema: [
                     { AttributeName: 'tenant_id', KeyType: 'HASH' },
-                    { AttributeName: 'customer_email', KeyType: 'RANGE' }
+                    { AttributeName: 'user_id', KeyType: 'RANGE' }
                 ],
                 Projection: { ProjectionType: 'ALL' },
                 ProvisionedThroughput: {
@@ -89,10 +89,10 @@ const tableConfigs = {
                 }
             },
             {
-                IndexName: 'StatusIndex',
+                IndexName: 'EstadoIndex',
                 KeySchema: [
                     { AttributeName: 'tenant_id', KeyType: 'HASH' },
-                    { AttributeName: 'status', KeyType: 'RANGE' }
+                    { AttributeName: 'estado', KeyType: 'RANGE' }
                 ],
                 Projection: { ProjectionType: 'ALL' },
                 ProvisionedThroughput: {
@@ -101,10 +101,10 @@ const tableConfigs = {
                 }
             },
             {
-                IndexName: 'DateIndex',
+                IndexName: 'FechaIndex',
                 KeySchema: [
                     { AttributeName: 'tenant_id', KeyType: 'HASH' },
-                    { AttributeName: 'created_at', KeyType: 'RANGE' }
+                    { AttributeName: 'fecha', KeyType: 'RANGE' }
                 ],
                 Projection: { ProjectionType: 'ALL' },
                 ProvisionedThroughput: {
@@ -124,7 +124,7 @@ const tableConfigs = {
     },
     
     searchIndex: {
-        TableName: 'CloudPF-SearchIndex-Academy',
+        TableName: 'CloudPF-SearchIndex',
         KeySchema: [
             { AttributeName: 'tenant_id', KeyType: 'HASH' },
             { AttributeName: 'entity_id', KeyType: 'RANGE' }
@@ -219,7 +219,7 @@ async function createTable(tableName, config) {
  * Función principal
  */
 async function main() {
-    console.log('🚀 Iniciando creación de tablas DynamoDB para AWS Academy');
+    console.log('🚀 Iniciando creación de tablas DynamoDB');
     console.log('📍 Región: us-east-1');
     
     try {
@@ -232,13 +232,13 @@ async function main() {
         
         // Mostrar resumen
         console.log('\n📊 Resumen de tablas creadas:');
-        console.log('1. CloudPF-Products-Academy (con Stream habilitado)');
-        console.log('2. CloudPF-Purchases-Academy (con Stream habilitado)');
-        console.log('3. CloudPF-SearchIndex-Academy (con TTL habilitado)');
+        console.log('1. CloudPF-Products (con Stream habilitado)');
+        console.log('2. CloudPF-Purchases (con Stream habilitado)');
+        console.log('3. CloudPF-SearchIndex (con TTL habilitado)');
         
         console.log('\n🔧 Próximos pasos:');
         console.log('1. Configurar las Lambda functions');
-        console.log('2. Desplegar usando serverless-academy.yml');
+        console.log('2. Desplegar usando serverless.yml');
         console.log('3. Probar la funcionalidad CDC');
         
     } catch (error) {

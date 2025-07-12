@@ -1,5 +1,5 @@
 /**
- * Script de prueba para CDC en AWS Academy
+ * Script de prueba para CDC
  * Genera datos de prueba y verifica el funcionamiento
  */
 
@@ -15,10 +15,10 @@ const s3 = new AWS.S3();
 
 // Configuración
 const CONFIG = {
-    productsTable: 'CloudPF-Products-Academy',
-    purchasesTable: 'CloudPF-Purchases-Academy',
-    searchIndexTable: 'CloudPF-SearchIndex-Academy',
-    analyticsBucket: 'cloudpf-analytics-academy'
+    productsTable: 'CloudPF-Products',
+    purchasesTable: 'CloudPF-Purchases',
+    searchIndexTable: 'CloudPF-SearchIndex',
+    analyticsBucket: 'cloudpf-analytics'
 };
 
 /**
@@ -27,33 +27,39 @@ const CONFIG = {
 const testProducts = [
     {
         tenant_id: 'tenant-1',
-        product_id: 'prod-001',
-        name: 'Laptop Gaming',
-        category: 'Electrónicos',
-        price: 1299.99,
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        codigo: 'PROD-001',
+        nombre: 'Laptop Gaming',
+        descripcion: 'Laptop para gaming de alta gama',
+        categoria: 'Electrónicos',
+        precio: 1299.99,
+        cantidad: 10,
+        estado: 'activo',
+        fecha_creacion: new Date().toISOString(),
+        fecha_actualizacion: new Date().toISOString()
     },
     {
         tenant_id: 'tenant-1',
-        product_id: 'prod-002',
-        name: 'Mouse Inalámbrico',
-        category: 'Accesorios',
-        price: 29.99,
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        codigo: 'PROD-002',
+        nombre: 'Mouse Inalámbrico',
+        descripcion: 'Mouse inalámbrico ergonómico',
+        categoria: 'Accesorios',
+        precio: 29.99,
+        cantidad: 50,
+        estado: 'activo',
+        fecha_creacion: new Date().toISOString(),
+        fecha_actualizacion: new Date().toISOString()
     },
     {
         tenant_id: 'tenant-2',
-        product_id: 'prod-003',
-        name: 'Teclado Mecánico',
-        category: 'Accesorios',
-        price: 89.99,
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        codigo: 'PROD-003',
+        nombre: 'Teclado Mecánico',
+        descripcion: 'Teclado mecánico RGB para gaming',
+        categoria: 'Accesorios',
+        precio: 89.99,
+        cantidad: 25,
+        estado: 'activo',
+        fecha_creacion: new Date().toISOString(),
+        fecha_actualizacion: new Date().toISOString()
     }
 ];
 
@@ -63,31 +69,35 @@ const testProducts = [
 const testPurchases = [
     {
         tenant_id: 'tenant-1',
-        purchase_id: 'purch-001',
-        customer_email: 'juan.perez@email.com',
-        customer_name: 'Juan Pérez',
-        product_id: 'prod-001',
-        product_name: 'Laptop Gaming',
-        product_category: 'Electrónicos',
-        quantity: 1,
-        total_amount: 1299.99,
-        status: 'completed',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        compra_id: 'COMP-001',
+        user_id: 'user-001',
+        fecha: new Date().toISOString(),
+        total: 1299.99,
+        estado: 'completado',
+        productos: [
+            {
+                codigo: 'PROD-001',
+                nombre: 'Laptop Gaming',
+                precio: 1299.99,
+                cantidad: 1
+            }
+        ]
     },
     {
         tenant_id: 'tenant-1',
-        purchase_id: 'purch-002',
-        customer_email: 'maria.garcia@email.com',
-        customer_name: 'María García',
-        product_id: 'prod-002',
-        product_name: 'Mouse Inalámbrico',
-        product_category: 'Accesorios',
-        quantity: 2,
-        total_amount: 59.98,
-        status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        compra_id: 'COMP-002',
+        user_id: 'user-002',
+        fecha: new Date().toISOString(),
+        total: 59.98,
+        estado: 'pendiente',
+        productos: [
+            {
+                codigo: 'PROD-002',
+                nombre: 'Mouse Inalámbrico',
+                precio: 29.99,
+                cantidad: 2
+            }
+        ]
     }
 ];
 

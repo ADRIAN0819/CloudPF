@@ -1,10 +1,10 @@
-service: cloudpf-ingesta-tiempo-real-academy
+service: adrianurbinamendoza
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: us-east-1
-  stage: ${opt:stage, 'academy'}
+  stage: ${opt:stage, 'prod'}
   # AWS Academy Configuration
   roleArn: arn:aws:iam::${aws:accountId}:role/LabRole
   environment:
@@ -18,17 +18,17 @@ provider:
     STAGE: ${self:provider.stage}
 
 custom:
-  s3Bucket: "cloudpf-data-lake-academy-${aws:accountId}"
-  dynamoTableProductos: "Productos-academy"
-  dynamoTableCompras: "Compras-academy"
-  dynamoTableProductSearch: "ProductSearch-academy"
-  athenaDatabase: "cloudpf_academy"
-  athenaOutputLocation: "s3://cloudpf-athena-results-academy/"
+  s3Bucket: "cloudpf-data-lake-${aws:accountId}"
+  dynamoTableProductos: "CloudPF-Products"
+  dynamoTableCompras: "CloudPF-Purchases"
+  dynamoTableProductSearch: "CloudPF-SearchIndex"
+  athenaDatabase: "cloudpf_analytics"
+  athenaOutputLocation: "s3://cloudpf-athena-results-${aws:accountId}/"
 
 functions:
-  # Lambda para CDC de Productos (Academy Version)
+  # Lambda para CDC de Productos
   productStreamProcessor:
-    handler: cdc-lambda-functions/product-stream-processor-academy.handler
+    handler: cdc-lambda-functions/product-stream-processor.handler
     events:
       - stream:
           type: dynamodb
@@ -54,35 +54,37 @@ functions:
     environment:
       FUNCTION_NAME: purchaseStreamProcessor
 
-  # API de Búsqueda para Academy (sin ElasticSearch)
+  # API de Búsqueda
   searchApi:
-    handler: api-rest/search-api-academy.handler
+    handler: api-rest/search-api.handler
     events:
       - http:
-          path: /search/{tenant_id}
+          path: /search
           method: get
           cors: true
+          request:
+            parameters:
+              querystrings:
+                q: true
+                tenant_id: true
       - http:
-          path: /search/{tenant_id}/products
+          path: /search/products
           method: get
           cors: true
+          request:
+            parameters:
+              querystrings:
+                q: false
+                tenant_id: true
       - http:
-          path: /search/{tenant_id}/purchases
+          path: /search/purchases
           method: get
           cors: true
-
-  # Lambda para consultas Athena
-  athenaQueries:
-    handler: athena-queries/query-handler.handler
-    events:
-      - http:
-          path: /analytics/{tenant_id}
-          method: get
-          cors: true
-      - http:
-          path: /analytics/{tenant_id}/report
-          method: post
-          cors: true
+          request:
+            parameters:
+              querystrings:
+                q: false
+                tenant_id: true
 
 resources:
   Resources:
@@ -94,13 +96,25 @@ resources:
         AttributeDefinitions:
           - AttributeName: tenant_id
             AttributeType: S
-          - AttributeName: product_id
+          - AttributeName: codigo
+            AttributeType: S
+          - AttributeName: user_id
             AttributeType: S
         KeySchema:
           - AttributeName: tenant_id
             KeyType: HASH
-          - AttributeName: product_id
+          - AttributeName: codigo
             KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: UserProductsIndex
+            KeySchema:
+              - AttributeName: tenant_id
+                KeyType: HASH
+              - AttributeName: user_id
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            BillingMode: PAY_PER_REQUEST
         BillingMode: PAY_PER_REQUEST
         StreamSpecification:
           StreamViewType: NEW_AND_OLD_IMAGES
@@ -113,23 +127,23 @@ resources:
         AttributeDefinitions:
           - AttributeName: tenant_id
             AttributeType: S
-          - AttributeName: purchase_id
+          - AttributeName: compra_id
             AttributeType: S
-          - AttributeName: usuario_id
+          - AttributeName: user_id
             AttributeType: S
-          - AttributeName: fecha_compra
+          - AttributeName: fecha
             AttributeType: S
         KeySchema:
           - AttributeName: tenant_id
             KeyType: HASH
-          - AttributeName: purchase_id
+          - AttributeName: compra_id
             KeyType: RANGE
         GlobalSecondaryIndexes:
           - IndexName: UserPurchasesIndex
             KeySchema:
               - AttributeName: tenant_id
                 KeyType: HASH
-              - AttributeName: usuario_id
+              - AttributeName: user_id
                 KeyType: RANGE
             Projection:
               ProjectionType: ALL
@@ -138,7 +152,7 @@ resources:
             KeySchema:
               - AttributeName: tenant_id
                 KeyType: HASH
-              - AttributeName: fecha_compra
+              - AttributeName: fecha
                 KeyType: RANGE
             Projection:
               ProjectionType: ALL
@@ -155,26 +169,40 @@ resources:
         AttributeDefinitions:
           - AttributeName: tenant_id
             AttributeType: S
-          - AttributeName: product_id
+          - AttributeName: entity_id
             AttributeType: S
-          - AttributeName: search_key
+          - AttributeName: entity_type
+            AttributeType: S
+          - AttributeName: updated_at
             AttributeType: S
         KeySchema:
           - AttributeName: tenant_id
             KeyType: HASH
-          - AttributeName: product_id
+          - AttributeName: entity_id
             KeyType: RANGE
         GlobalSecondaryIndexes:
-          - IndexName: tenant_id-search_key-index
+          - IndexName: TypeIndex
             KeySchema:
               - AttributeName: tenant_id
                 KeyType: HASH
-              - AttributeName: search_key
+              - AttributeName: entity_type
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            BillingMode: PAY_PER_REQUEST
+          - IndexName: UpdatedIndex
+            KeySchema:
+              - AttributeName: tenant_id
+                KeyType: HASH
+              - AttributeName: updated_at
                 KeyType: RANGE
             Projection:
               ProjectionType: ALL
             BillingMode: PAY_PER_REQUEST
         BillingMode: PAY_PER_REQUEST
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
 
     # S3 Bucket para Data Lake
     DataLakeBucket:
@@ -193,7 +221,7 @@ resources:
     AthenaResultsBucket:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: cloudpf-athena-results-academy
+        BucketName: cloudpf-athena-results-academy-${aws:accountId}
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true

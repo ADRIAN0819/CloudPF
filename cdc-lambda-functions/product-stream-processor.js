@@ -1,9 +1,9 @@
 /**
- * Lambda Function para procesar cambios en DynamoDB Stream de Purchases
- * Versión AWS Academy - Adaptada para LabRole y sin ElasticSearch
+ * Lambda Function para procesar cambios en DynamoDB Stream de Products
+ * Adaptada para LabRole y estructuras de datos reales
  * 
  * Funcionalidades:
- * - Procesa eventos de CDC de la tabla Purchases
+ * - Procesa eventos de CDC de la tabla Products
  * - Almacena datos en S3 para análisis con Athena
  * - Mantiene índice de búsqueda en DynamoDB GSI
  * - Soporte multi-tenant
@@ -16,14 +16,14 @@ const s3 = new AWS.S3();
 const dynamodb = new AWS.DynamoDB.DocumentClient();
 
 // Variables de entorno
-const ANALYTICS_BUCKET = process.env.ANALYTICS_BUCKET || 'cloudpf-analytics-bucket';
-const SEARCH_INDEX_TABLE = process.env.SEARCH_INDEX_TABLE || 'CloudPF-SearchIndex';
+const ANALYTICS_BUCKET = process.env.S3_BUCKET || 'cloudpf-data-lake';
+const SEARCH_INDEX_TABLE = process.env.DYNAMODB_TABLE_PRODUCT_SEARCH || 'CloudPF-SearchIndex';
 
 /**
  * Handler principal para procesar eventos de DynamoDB Stream
  */
 exports.handler = async (event) => {
-    console.log('Procesando eventos de Purchase Stream:', JSON.stringify(event, null, 2));
+    console.log('Procesando eventos de Product Stream:', JSON.stringify(event, null, 2));
     
     const results = {
         successful: 0,
@@ -41,7 +41,7 @@ exports.handler = async (event) => {
                 console.error('Error procesando registro:', error);
                 results.failed++;
                 results.errors.push({
-                    recordId: record.dynamodb?.Keys?.purchase_id?.S,
+                    recordId: record.dynamodb?.Keys?.codigo?.S,
                     error: error.message
                 });
             }
@@ -52,7 +52,7 @@ exports.handler = async (event) => {
         return {
             statusCode: 200,
             body: JSON.stringify({
-                message: 'Purchase stream procesado exitosamente',
+                message: 'Product stream procesado exitosamente',
                 results: results
             })
         };
@@ -73,12 +73,12 @@ async function processRecord(record) {
     console.log(`Procesando evento: ${eventName}`);
     
     // Extraer datos según el tipo de evento
-    let purchaseData;
+    let productData;
     
     switch (eventName) {
         case 'INSERT':
-            purchaseData = unmarshalDynamoData(dynamoDbData.NewImage);
-            await handleInsert(purchaseData);
+            productData = unmarshalDynamoData(dynamoDbData.NewImage);
+            await handleInsert(productData);
             break;
             
         case 'MODIFY':
@@ -88,8 +88,8 @@ async function processRecord(record) {
             break;
             
         case 'REMOVE':
-            purchaseData = unmarshalDynamoData(dynamoDbData.OldImage);
-            await handleRemove(purchaseData);
+            productData = unmarshalDynamoData(dynamoDbData.OldImage);
+            await handleRemove(productData);
             break;
             
         default:
@@ -98,70 +98,76 @@ async function processRecord(record) {
 }
 
 /**
- * Maneja inserción de nueva compra
+ * Maneja inserción de nuevo producto
  */
-async function handleInsert(purchaseData) {
-    console.log('Procesando inserción de compra:', purchaseData);
+async function handleInsert(productData) {
+    console.log('Procesando inserción de producto:', productData);
+    
+    // Validar datos del producto
+    validateProductData(productData);
     
     // Enriquecer datos con timestamp
     const enrichedData = {
-        ...purchaseData,
+        ...productData,
         processed_at: new Date().toISOString(),
-        event_type: 'purchase_created'
+        event_type: 'product_created'
     };
     
     // Guardar en S3 para análisis
-    await saveToS3(enrichedData, 'purchases');
+    await saveToS3(enrichedData, 'products');
     
     // Actualizar índice de búsqueda
     await updateSearchIndex(enrichedData, 'INSERT');
     
-    console.log('Compra procesada exitosamente');
+    console.log('Producto procesado exitosamente');
 }
 
 /**
- * Maneja modificación de compra existente
+ * Maneja modificación de producto existente
  */
 async function handleModify(oldData, newData) {
-    console.log('Procesando modificación de compra:', { oldData, newData });
+    console.log('Procesando modificación de producto:', { oldData, newData });
+    
+    // Validar datos del producto
+    validateProductData(newData);
     
     // Enriquecer datos con timestamp
     const enrichedData = {
         ...newData,
         processed_at: new Date().toISOString(),
-        event_type: 'purchase_updated',
+        event_type: 'product_updated',
         previous_data: oldData
     };
     
     // Guardar en S3 para análisis
-    await saveToS3(enrichedData, 'purchases');
+    await saveToS3(enrichedData, 'products');
     
     // Actualizar índice de búsqueda
     await updateSearchIndex(enrichedData, 'MODIFY');
     
-    console.log('Modificación de compra procesada exitosamente');
+    console.log('Modificación de producto procesada exitosamente');
 }
 
 /**
- * Maneja eliminación de compra
+ * Maneja eliminación de producto
  */
-async function handleRemove(purchaseData) {
-    console.log('Procesando eliminación de compra:', purchaseData);
+async function handleRemove(productData) {
+    console.log('Procesando eliminación de producto:', productData);
     
     // Enriquecer datos con timestamp
     const enrichedData = {
-        ...purchaseData,
+        ...productData,
         processed_at: new Date().toISOString(),
-        event_type: 'purchase_deleted'
+        event_type: 'product_deleted'
     };
     
     // Guardar en S3 para análisis
-    await saveToS3(enrichedData, 'purchases');
+    await saveToS3(enrichedData, 'products');
     
     // Actualizar índice de búsqueda
     await updateSearchIndex(enrichedData, 'REMOVE');
     
-    console.log('Eliminación de compra procesada exitosamente');
+    console.log('Eliminación de producto procesada exitosamente');
 }
 
 /**
@@ -175,7 +181,7 @@ async function saveToS3(data, type) {
     const hour = String(timestamp.getHours()).padStart(2, '0');
     
     // Estructura particionada por fecha para optimizar consultas Athena
-    const key = `${type}/year=${year}/month=${month}/day=${day}/hour=${hour}/${data.tenant_id}_${data.purchase_id}_${timestamp.getTime()}.json`;
+    const key = `${type}/year=${year}/month=${month}/day=${day}/hour=${hour}/${data.tenant_id}_${data.codigo}_${timestamp.getTime()}.json`;
     
     const params = {
         Bucket: ANALYTICS_BUCKET,
@@ -199,8 +205,8 @@ async function saveToS3(data, type) {
 async function updateSearchIndex(data, operation) {
     const searchEntry = {
         tenant_id: data.tenant_id,
-        entity_type: 'purchase',
-        entity_id: data.purchase_id,
+        entity_type: 'product',
+        entity_id: data.codigo,
         search_text: createSearchText(data),
         data: data,
         updated_at: new Date().toISOString(),
@@ -214,7 +220,7 @@ async function updateSearchIndex(data, operation) {
                 TableName: SEARCH_INDEX_TABLE,
                 Key: {
                     tenant_id: data.tenant_id,
-                    entity_id: data.purchase_id
+                    entity_id: data.codigo
                 }
             }).promise();
             console.log('Entrada eliminada del índice de búsqueda');
@@ -237,12 +243,11 @@ async function updateSearchIndex(data, operation) {
  */
 function createSearchText(data) {
     const searchableFields = [
-        data.purchase_id,
-        data.customer_email,
-        data.customer_name,
-        data.status,
-        data.product_name,
-        data.product_category
+        data.codigo,
+        data.nombre,
+        data.descripcion,
+        data.user_id,
+        data.tenant_id
     ];
     
     return searchableFields
@@ -281,10 +286,10 @@ function unmarshalDynamoData(data) {
 }
 
 /**
- * Función de validación para datos de compra
+ * Función de validación para datos de producto
  */
-function validatePurchaseData(data) {
-    const required = ['purchase_id', 'tenant_id', 'customer_email'];
+function validateProductData(data) {
+    const required = ['codigo', 'tenant_id', 'nombre'];
     const missing = required.filter(field => !data[field]);
     
     if (missing.length > 0) {
