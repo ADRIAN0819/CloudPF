@@ -123,9 +123,8 @@ CloudPF/
 
 ### GitHub Repository
 ```
-https://github.com/TU-USUARIO/CloudPF
+https://github.com/ADRIAN0819/CloudPF#
 ```
-*Actualizar con el enlace real del repositorio*
 
 ### Lambda Functions Sources
 Las funciones Lambda están disponibles públicamente en:
