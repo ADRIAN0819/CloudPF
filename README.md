@@ -166,12 +166,6 @@ Para documentación detallada, consultar:
 - [Arquitectura Academy](docs/arquitectura-academy.md)
 - [Setup MV Academy](docs/setup-mv-academy.md)
 
-## 🆘 Soporte y Contacto
-
-- **GitHub Issues**: [CloudPF Issues](https://github.com/TU-USUARIO/CloudPF/issues)
-- **Email**: tu-email@universidad.edu
-- **Documentación**: `/docs` en este repositorio
-
 ---
 
 *Proyecto desarrollado para cumplir con los requisitos de Ingesta en Tiempo Real, CDC y MV Búsqueda, adaptado específicamente para AWS Academy.*
