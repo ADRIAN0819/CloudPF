@@ -1,0 +1,205 @@
+service: cloudpf-ingesta-tiempo-real-academy
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: ${opt:stage, 'academy'}
+  # AWS Academy Configuration
+  roleArn: arn:aws:iam::${aws:accountId}:role/LabRole
+  environment:
+    S3_BUCKET: ${self:custom.s3Bucket}
+    DYNAMODB_TABLE_PRODUCTOS: ${self:custom.dynamoTableProductos}
+    DYNAMODB_TABLE_COMPRAS: ${self:custom.dynamoTableCompras}
+    DYNAMODB_TABLE_PRODUCT_SEARCH: ${self:custom.dynamoTableProductSearch}
+    ATHENA_DATABASE: ${self:custom.athenaDatabase}
+    ATHENA_OUTPUT_LOCATION: ${self:custom.athenaOutputLocation}
+    AWS_ACCOUNT_ID: ${aws:accountId}
+    STAGE: ${self:provider.stage}
+
+custom:
+  s3Bucket: "cloudpf-data-lake-academy-${aws:accountId}"
+  dynamoTableProductos: "Productos-academy"
+  dynamoTableCompras: "Compras-academy"
+  dynamoTableProductSearch: "ProductSearch-academy"
+  athenaDatabase: "cloudpf_academy"
+  athenaOutputLocation: "s3://cloudpf-athena-results-academy/"
+
+functions:
+  # Lambda para CDC de Productos (Academy Version)
+  productStreamProcessor:
+    handler: cdc-lambda-functions/product-stream-processor-academy.handler
+    events:
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt: [ProductsTable, StreamArn]
+          batchSize: 100
+          maximumBatchingWindowInSeconds: 5
+          startingPosition: LATEST
+    environment:
+      FUNCTION_NAME: productStreamProcessor
+
+  # Lambda para CDC de Compras
+  purchaseStreamProcessor:
+    handler: cdc-lambda-functions/purchase-stream-processor.handler
+    events:
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt: [PurchasesTable, StreamArn]
+          batchSize: 100
+          maximumBatchingWindowInSeconds: 5
+          startingPosition: LATEST
+    environment:
+      FUNCTION_NAME: purchaseStreamProcessor
+
+  # API de Búsqueda para Academy (sin ElasticSearch)
+  searchApi:
+    handler: api-rest/search-api-academy.handler
+    events:
+      - http:
+          path: /search/{tenant_id}
+          method: get
+          cors: true
+      - http:
+          path: /search/{tenant_id}/products
+          method: get
+          cors: true
+      - http:
+          path: /search/{tenant_id}/purchases
+          method: get
+          cors: true
+
+  # Lambda para consultas Athena
+  athenaQueries:
+    handler: athena-queries/query-handler.handler
+    events:
+      - http:
+          path: /analytics/{tenant_id}
+          method: get
+          cors: true
+      - http:
+          path: /analytics/{tenant_id}/report
+          method: post
+          cors: true
+
+resources:
+  Resources:
+    # Tabla de Productos con Streams
+    ProductsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.dynamoTableProductos}
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: product_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: product_id
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+
+    # Tabla de Compras con Streams
+    PurchasesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.dynamoTableCompras}
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: purchase_id
+            AttributeType: S
+          - AttributeName: usuario_id
+            AttributeType: S
+          - AttributeName: fecha_compra
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: purchase_id
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: UserPurchasesIndex
+            KeySchema:
+              - AttributeName: tenant_id
+                KeyType: HASH
+              - AttributeName: usuario_id
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            BillingMode: PAY_PER_REQUEST
+          - IndexName: DateIndex
+            KeySchema:
+              - AttributeName: tenant_id
+                KeyType: HASH
+              - AttributeName: fecha_compra
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            BillingMode: PAY_PER_REQUEST
+        BillingMode: PAY_PER_REQUEST
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+
+    # Tabla de Búsqueda de Productos (Alternativa a ElasticSearch)
+    ProductSearchTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.dynamoTableProductSearch}
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: product_id
+            AttributeType: S
+          - AttributeName: search_key
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: product_id
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: tenant_id-search_key-index
+            KeySchema:
+              - AttributeName: tenant_id
+                KeyType: HASH
+              - AttributeName: search_key
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+            BillingMode: PAY_PER_REQUEST
+        BillingMode: PAY_PER_REQUEST
+
+    # S3 Bucket para Data Lake
+    DataLakeBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.s3Bucket}
+        VersioningConfiguration:
+          Status: Enabled
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+
+    # Athena Results Bucket
+    AthenaResultsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: cloudpf-athena-results-academy
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+
+plugins:
+  - serverless-webpack
+  - serverless-offline

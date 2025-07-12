@@ -1,0 +1,95 @@
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependency directories
+node_modules/
+
+# Production build
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# AWS
+.aws/
+*.pem
+
+# Serverless
+.serverless/
+.serverless_plugins/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Elasticsearch data
+elasticsearch/data/
+es_data/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Test results
+test-results/
+junit.xml
+
+# Athena query results
+athena-results/
+query-results/
+
+# S3 local files
+s3-local/
+
+# Backup files
+*.backup
+*.bak
+
+# Certificates
+*.crt
+*.key
+*.pem
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# CloudFormation
+*.template
+cf-templates/
+
+# Local configuration
+local-config.json
+local-settings.json
+
+# Documentation generated files
+docs/generated/
+*.pdf
+
+# Package-lock for different package managers
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

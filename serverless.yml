@@ -1,0 +1,157 @@
+service: cloudpf-ingesta-tiempo-real
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  # AWS Academy Configuration
+  roleArn: arn:aws:iam::${aws:accountId}:role/LabRole
+  environment:
+    ELASTICSEARCH_ENDPOINT: ${self:custom.elasticsearchEndpoint}
+    S3_BUCKET: ${self:custom.s3Bucket}
+    DYNAMODB_TABLE_PRODUCTOS: ${self:custom.dynamoTableProductos}
+    DYNAMODB_TABLE_COMPRAS: ${self:custom.dynamoTableCompras}
+    ATHENA_DATABASE: ${self:custom.athenaDatabase}
+    ATHENA_OUTPUT_LOCATION: ${self:custom.athenaOutputLocation}
+    AWS_ACCOUNT_ID: ${aws:accountId}
+  
+  # AWS Academy uses LabRole with managed policies
+  # No need for custom IAM statements
+
+custom:
+  elasticsearchEndpoint: 
+    dev: "https://vpc-cloudpf-dev-xxxxx.us-east-1.es.amazonaws.com"
+    test: "https://vpc-cloudpf-test-xxxxx.us-east-1.es.amazonaws.com"
+    prod: "https://vpc-cloudpf-prod-xxxxx.us-east-1.es.amazonaws.com"
+  s3Bucket: "cloudpf-data-lake-${self:provider.stage}"
+  dynamoTableProductos: "Productos-${self:provider.stage}"
+  dynamoTableCompras: "Compras-${self:provider.stage}"
+  athenaDatabase: "cloudpf_${self:provider.stage}"
+  athenaOutputLocation: "s3://cloudpf-athena-results-${self:provider.stage}/"
+
+functions:
+  # Lambda para CDC de Productos
+  productStreamProcessor:
+    handler: cdc-lambda-functions/product-stream-processor.handler
+    events:
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt: [ProductsTable, StreamArn]
+          batchSize: 100
+          maximumBatchingWindowInSeconds: 5
+          startingPosition: LATEST
+    environment:
+      FUNCTION_NAME: productStreamProcessor
+
+  # Lambda para CDC de Compras
+  purchaseStreamProcessor:
+    handler: cdc-lambda-functions/purchase-stream-processor.handler
+    events:
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt: [PurchasesTable, StreamArn]
+          batchSize: 100
+          maximumBatchingWindowInSeconds: 5
+          startingPosition: LATEST
+    environment:
+      FUNCTION_NAME: purchaseStreamProcessor
+
+  # API REST para ElasticSearch
+  elasticsearchApi:
+    handler: api-rest/elasticsearch-api.handler
+    events:
+      - http:
+          path: /search/{tenant_id}
+          method: get
+          cors: true
+      - http:
+          path: /search/{tenant_id}/products
+          method: get
+          cors: true
+      - http:
+          path: /search/{tenant_id}/purchases
+          method: get
+          cors: true
+
+  # Lambda para consultas Athena
+  athenaQueries:
+    handler: athena-queries/query-handler.handler
+    events:
+      - http:
+          path: /analytics/{tenant_id}
+          method: get
+          cors: true
+      - http:
+          path: /analytics/{tenant_id}/report
+          method: post
+          cors: true
+
+resources:
+  Resources:
+    # Tablas DynamoDB con Streams habilitados
+    ProductsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.dynamoTableProductos}
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: product_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: product_id
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+
+    PurchasesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.dynamoTableCompras}
+        AttributeDefinitions:
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: purchase_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tenant_id
+            KeyType: HASH
+          - AttributeName: purchase_id
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+
+    # S3 Bucket para Data Lake
+    DataLakeBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.s3Bucket}
+        VersioningConfiguration:
+          Status: Enabled
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+
+    # Athena Results Bucket
+    AthenaResultsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: cloudpf-athena-results-${self:provider.stage}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+
+plugins:
+  - serverless-webpack
+  - serverless-offline
