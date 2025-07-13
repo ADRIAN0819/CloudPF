@@ -16,8 +16,9 @@ const s3 = new AWS.S3();
 const dynamodb = new AWS.DynamoDB.DocumentClient();
 
 // Variables de entorno
-const ANALYTICS_BUCKET = process.env.S3_BUCKET || 'cloudpf-data-lake';
+const ANALYTICS_BUCKET = process.env.ANALYTICS_BUCKET || 'cloudpf-analytics-281612000535';
 const SEARCH_INDEX_TABLE = process.env.DYNAMODB_TABLE_PRODUCT_SEARCH || 'CloudPF-SearchIndex';
+const PURCHASES_TABLE = process.env.DYNAMODB_TABLE_COMPRAS || 'dev-t_MS3_compras';
 
 /**
  * Handler principal para procesar eventos de DynamoDB Stream

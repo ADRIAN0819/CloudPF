@@ -1,29 +1,28 @@
-service: adrianurbinamendoza
+org: supermanzana25
+service: cloudpf-cdc
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: us-east-1
-  stage: ${opt:stage, 'prod'}
-  # AWS Academy Configuration
-  roleArn: arn:aws:iam::${aws:accountId}:role/LabRole
+  stage: ${opt:stage, 'dev'}
+  memorySize: 1024
+  timeout: 30
   environment:
     S3_BUCKET: ${self:custom.s3Bucket}
-    DYNAMODB_TABLE_PRODUCTOS: ${self:custom.dynamoTableProductos}
-    DYNAMODB_TABLE_COMPRAS: ${self:custom.dynamoTableCompras}
+    DYNAMODB_TABLE_PRODUCTOS: ${sls:stage}-t_MS2_productos
+    DYNAMODB_TABLE_COMPRAS: ${sls:stage}-t_MS3_compras
     DYNAMODB_TABLE_PRODUCT_SEARCH: ${self:custom.dynamoTableProductSearch}
-    ATHENA_DATABASE: ${self:custom.athenaDatabase}
-    ATHENA_OUTPUT_LOCATION: ${self:custom.athenaOutputLocation}
-    AWS_ACCOUNT_ID: ${aws:accountId}
+    ANALYTICS_BUCKET: ${self:custom.analyticsBucket}
+    AWS_ACCOUNT_ID: 281612000535
     STAGE: ${self:provider.stage}
+  iam:
+    role: arn:aws:iam::281612000535:role/LabRole
 
 custom:
-  s3Bucket: "cloudpf-data-lake-${aws:accountId}"
-  dynamoTableProductos: "CloudPF-Products"
-  dynamoTableCompras: "CloudPF-Purchases"
+  s3Bucket: "cloudpf-data-lake-281612000535"
   dynamoTableProductSearch: "CloudPF-SearchIndex"
-  athenaDatabase: "cloudpf_analytics"
-  athenaOutputLocation: "s3://cloudpf-athena-results-${aws:accountId}/"
+  analyticsBucket: "cloudpf-analytics-281612000535"
 
 functions:
   # Lambda para CDC de Productos
@@ -32,8 +31,7 @@ functions:
     events:
       - stream:
           type: dynamodb
-          arn:
-            Fn::GetAtt: [ProductsTable, StreamArn]
+          arn: arn:aws:dynamodb:us-east-1:281612000535:table/dev-t_MS2_productos/stream/2025-07-12T20:43:46.012
           batchSize: 100
           maximumBatchingWindowInSeconds: 5
           startingPosition: LATEST
@@ -46,8 +44,7 @@ functions:
     events:
       - stream:
           type: dynamodb
-          arn:
-            Fn::GetAtt: [PurchasesTable, StreamArn]
+          arn: arn:aws:dynamodb:us-east-1:281612000535:table/dev-t_MS3_compras/stream/2025-07-12T20:47:20.976
           batchSize: 100
           maximumBatchingWindowInSeconds: 5
           startingPosition: LATEST
@@ -217,11 +214,13 @@ resources:
           IgnorePublicAcls: true
           RestrictPublicBuckets: true
 
-    # Athena Results Bucket
-    AthenaResultsBucket:
+    # Analytics Bucket
+    AnalyticsBucket:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: cloudpf-athena-results-academy-${aws:accountId}
+        BucketName: ${self:custom.analyticsBucket}
+        VersioningConfiguration:
+          Status: Enabled
         PublicAccessBlockConfiguration:
           BlockPublicAcls: true
           BlockPublicPolicy: true
@@ -229,5 +228,6 @@ resources:
           RestrictPublicBuckets: true
 
 plugins:
-  - serverless-webpack
+  - serverless-plugin-common-excludes
+  - serverless-plugin-include-dependencies
   - serverless-offline
